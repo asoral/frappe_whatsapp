@@ -47,6 +47,7 @@
    "reqd": 1
   },
   {
+   "fetch_from": "language.language_code",
    "fieldname": "language_code",
    "fieldtype": "Data",
    "label": "Language Code",
@@ -108,7 +109,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2023-11-23 17:44:04.673291",
+ "modified": "2024-01-29 17:38:08.625131",
  "modified_by": "Administrator",
  "module": "Frappe Whatsapp",
  "name": "WhatsApp Templates",

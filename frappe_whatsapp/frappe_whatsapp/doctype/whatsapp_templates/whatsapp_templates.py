@@ -13,10 +13,12 @@ class WhatsAppTemplates(Document):
 
     def after_insert(self):
         """Set template code."""
-        self.template_name = self.template_name.lower().replace(' ', '_')
+        self.template_name = self.template_name.lower().replace(' ', '_') 
+        print('###template name**********', self.template_name)
         self.language_code = frappe.db.get_value(
             "Language", self.language
         ).replace('-', '_')
+        print("*****lnaguage code****",self.language_code)
 
         self.get_settings()
         data = {
@@ -49,12 +51,21 @@ class WhatsAppTemplates(Document):
             })
 
         try:
+            print("***********DATA************************", json.dumps(data, indent=4))
+
             response = make_post_request(
                 f"{self._url}/{self._version}/{self._business_id}/message_templates",
                 headers=self._headers, data=json.dumps(data)
             )
             self.id = response['id']
-            self.status = response['status']
+            if response['status'] == 'Active':
+                self.status = 'Active'
+            elif response['status'] == 'In review':
+                self.status = 'In review'
+            else:
+                self.status == 'Rejected'
+            
+            # self.status = response['status']
             # frappe.db.set_value("WhatsApp Templates", self.name, "id", response['id'])
         except Exception as e:
             res = frappe.flags.integration_request.json()['error']
@@ -75,6 +86,7 @@ class WhatsAppTemplates(Document):
             "type": "BODY",
             "text": self.template,
         }
+        print("************sample_value*****",self.sample_values)
         if self.sample_values:
             body.update({
                 "example": {
@@ -138,18 +150,55 @@ class WhatsAppTemplates(Document):
             "type": "header",
             "format": self.header_type
         }
+        
         if self.header_type == "TEXT":
             header['text'] = self.header
-
-        else:
-            if not self.sample:
-                key = frappe.get_doc(self.doctype, self.name).get_document_share_key()
-                link = get_pdf_link(self.doctype, self.name)
-                self.sample = f'{frappe.utils.get_url()}{link}&key={key}'
+            print("*****SAMPLE VALUE for text***********",self.sample) 
+            
+        elif self.header_type == 'IMAGE':
+            print("**********header_type **********",self.header_type)
             header.update({"example": {
-                "header_handle": [self.sample]
-            }})
+                "header_handle": [self.sample]}
+            })
+            # header.update({
+            #     "type": "IMAGE",
+            #     "image": {
+            #     "id": self.sample
+            #     }
+            # })
+            
+            # header['image'].update({
+            #     "format": self.header_type,
+            #     "image": self.sample     # split('/')[-1],
+            # }).self.header
+            
+            print("*****SAMPLE for IMage***********",self.sample)
 
+        elif self.header_type == 'DOCUMENT':
+            header["media"] = {
+                "type": "document",
+                "url": self.sample
+            }
+            
+            # header["type"].update({
+            #     "format": self.header_type,
+            #     # "sample ": self.sample     # split('/')[-1],
+            # })
+            print("*****SAMPLE for document***********",self.sample)             
+        
+        
+     
+            
+        # elif not self.sample:
+        #     key = frappe.get_doc(self.doctype, self.name).get_document_share_key()
+        #     link = get_pdf_link(self.doctype, self.name)
+        #     self.sample = f'{frappe.utils.get_url()}{link}&key={key}'
+        # header.update({"example": {
+        #     "header_handle": [self.sample]
+        # }})
+            
+            
+        print("***********HEADER in return ************************",header,type(header))
         return header
 
 
@@ -168,6 +217,7 @@ def fetch():
         "authorization": f"Bearer {token}",
         "content-type": "application/json"
     }
+    print("*******HEDERS FROM fetch********",headers)
 
     try:
         response = make_request(
@@ -175,6 +225,10 @@ def fetch():
             f"{url}/{version}/{business_id}/message_templates",
             headers=headers,
         )
+        
+        print("*********this is response************",response)
+
+        print("**********RESPONSE DATA:******",response['data'])
 
         for template in response['data']:
             # set flag to insert or update
@@ -186,21 +240,41 @@ def fetch():
                 doc = frappe.new_doc("WhatsApp Templates")
                 doc.template_name = template['name']
 
-            doc.status = template['status']
+            if doc.status == 'Pending':
+                doc.status == 'Active'
+            else:
+                doc.status == "Rejected"
+            
+            # doc.status = template['status']
             doc.language_code = template['language']
             doc.category = template['category']
             doc.id = template['id']
 
             # update components
+            print("*******Template Components******",template['components'])
             for component in template['components']:
 
                 # update header
                 if component['type'] == "HEADER":
                     doc.header_type = component['format']
 
-                    # if format is text update sample text
+                    # if format is text update sample text            "url": component['image']
                     if component['format'] == 'TEXT':
                         doc.header = component['text']
+                    elif component['format'] == 'IMAGE':
+                        doc.sample = {
+                        "type": "image",
+                        "url": component['image']
+                        }
+                        # doc.sample = [{
+			            #     "type": "header",
+			            #     "parameters": [{
+                        #     "type": "image",
+                        #     "image": {
+                        #         "id": 'self.sample'
+                        #     }}]
+                        # }]    
+                        
                 # Update footer text
                 elif component['type'] == 'FOOTER':
                     doc.footer = component['text']
@@ -228,3 +302,9 @@ def fetch():
         )
 
     return "Successfully fetched templates from meta"
+
+
+
+
+
+   
